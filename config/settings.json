@@ -1,0 +1,12 @@
+{
+  "territory": ["Roscoe", "Rockton", "Rockford", "South Beloit", "Loves Park", "Machesney Park", "Belvidere", "Beloit"],
+  "candidate_limit": 30,
+  "qualified_limit": 10,
+  "request_interval_seconds": 1.0,
+  "timeout_seconds": 15,
+  "max_pages_per_business": 4,
+  "google_sheet_id": null,
+  "telegram_enabled": false,
+  "gmail_enabled": false,
+  "recurring_enabled": false
+}
