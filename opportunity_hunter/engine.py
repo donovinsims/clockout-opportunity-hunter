@@ -321,7 +321,7 @@ def safe_cell(v):
     return "'"+s if s.lstrip().startswith(('=','+','-','@')) or s.startswith(('\t','\r')) else s
 
 
-def export(root,store,run_id,summary):
+def export(root,store,run_id,summary,review_signals=None):
     root=Path(root); folder=root/'data/runs'/run_id;folder.mkdir(parents=True,exist_ok=True)
     leads=store.all(); qualified=[p for p in leads if p['qualified']]
     fields=FIELDS
@@ -362,6 +362,18 @@ def export(root,store,run_id,summary):
         for k in ['location_evidence','independence_evidence','commercial_evidence']:
             if p.get(k):report += [f"{k}: {p[k]['quote']} — {p[k]['url']}"]
         report += [f"Solution: {p['suggested_solution']}",f"Next: {p['next_action']}",f"Gaps: {'; '.join(p['qualification_reasons']+p['unverified'])}",'']
+    if review_signals is not None:
+        # Optional, informational enrichment; scores and qualification above are already final.
+        from . import review_signals as rs
+        businesses,warnings=rs.load(review_signals)
+        summary['review_signals']={'file':str(review_signals),'entries':len(businesses),'warnings':warnings}
+        for w in warnings:print('Warning: '+w,flush=True)
+        if businesses:
+            report += rs.report_lines(leads,businesses)
+            rows=rs.csv_rows(leads,businesses);summary['review_signals']['matched_prospects']=len(rows)
+            with (root/'data/review-signals.csv').open('w',newline='') as f:
+                w=csv.DictWriter(f,fieldnames=rs.CSV_FIELDS);w.writeheader()
+                for row in rows:w.writerow({k:safe_cell(v) for k,v in row.items()})
     (folder/'report.md').write_text('\n'.join(report));(root/'data/latest-report.md').write_text('\n'.join(report))
     (folder/'summary.json').write_text(json.dumps(summary,indent=2))
     return qualified,drafts

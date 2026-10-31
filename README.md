@@ -117,3 +117,7 @@ Sheets sync maps columns by headers, preserves owner status/follow-up and unknow
 and stops on conflicting headers, duplicate IDs, insufficient grid bounds or incomplete writes.
 Connector-assisted updates do not configure standalone OAuth. Core exports work without Google.
 Third-party attribution: [notices](docs/third-party-notices.md).
+
+## Optional review signals
+
+`./hunt export --review-signals signals.json` adds an informational section from the separate gmr review scraper. It never changes scores. See [docs/review-signals.md](docs/review-signals.md).

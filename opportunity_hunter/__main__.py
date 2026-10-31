@@ -115,7 +115,7 @@ def run(args):
             except Exception as e:
                 summary['failed']+=1
                 logging.error(json.dumps({'event':'candidate_failed','name':c['name'],'type':type(e).__name__,'error':str(e)[:200]}))
-        qualified,drafts=export(ROOT,store,rid,summary)
+        qualified,drafts=export(ROOT,store,rid,summary,getattr(args,'review_signals',None))
         summary['qualified_in_tracker']=len(qualified)
         summary['drafts_prepared']=len(drafts)
         state='completed' if not summary['failed'] else 'partial'
@@ -136,11 +136,11 @@ def main():
     logging.basicConfig(filename=ROOT/'logs/hunter.jsonl',level=logging.INFO,format='%(message)s')
     parser=argparse.ArgumentParser(description='Opportunity Hunter — manual research, evidence and unsent drafts')
     sub=parser.add_subparsers(dest='command',required=True)
-    r=sub.add_parser('run');r.add_argument('--candidates');r.add_argument('--directory',action='append');r.add_argument('--query',action='append');r.add_argument('--city',default='Rockford');r.add_argument('--limit',type=int,default=30);r.add_argument('--no-browser',action='store_true')
+    r=sub.add_parser('run');r.add_argument('--candidates');r.add_argument('--directory',action='append');r.add_argument('--query',action='append');r.add_argument('--city',default='Rockford');r.add_argument('--limit',type=int,default=30);r.add_argument('--no-browser',action='store_true');r.add_argument('--review-signals',help='optional gmr signals.json; informational, never scored')
     d=sub.add_parser('discover');d.add_argument('--directory',action='append');d.add_argument('--maps',action='store_true');d.add_argument('--query');d.add_argument('--city',required=True);d.add_argument('--output',default='data/discovered.json');d.add_argument('--limit',type=int,default=30)
     sub.add_parser('status')
     sy=sub.add_parser('sync');sy.add_argument('--gmail',action='store_true');sy.add_argument('--sheets',action='store_true');sy.add_argument('--telegram-run');sy.add_argument('--hermes-env')
-    e=sub.add_parser('export')
+    e=sub.add_parser('export');e.add_argument('--review-signals',help='optional gmr signals.json; informational, never scored')
     m=sub.add_parser('mark');m.add_argument('id');m.add_argument('--status',required=True,choices=['not contacted','draft prepared','contacted','replied','do not contact','won','lost']);m.add_argument('--follow-up',default='')
     args=parser.parse_args()
     if args.command=='run':run(args)
@@ -176,7 +176,7 @@ def main():
                 cur=store.db.execute('UPDATE prospects SET outreach_status=?,follow_up_date=? WHERE id=?',(args.status,args.follow_up,args.id))
             if not cur.rowcount:parser.error('Unknown prospect ID')
             print('Human sales status saved; research reruns preserve it.')
-        else:export(ROOT,store,'export-'+now().replace(':',''),{'manual_export':True})
+        else:export(ROOT,store,'export-'+now().replace(':',''),{'manual_export':True},args.review_signals)
         store.db.close()
 
 if __name__=='__main__':main()
