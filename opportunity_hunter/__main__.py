@@ -138,12 +138,34 @@ def main():
     sub=parser.add_subparsers(dest='command',required=True)
     r=sub.add_parser('run');r.add_argument('--candidates');r.add_argument('--directory',action='append');r.add_argument('--query',action='append');r.add_argument('--city',default='Rockford');r.add_argument('--limit',type=int,default=30);r.add_argument('--no-browser',action='store_true');r.add_argument('--review-signals',help='optional gmr signals.json; informational, never scored')
     d=sub.add_parser('discover');d.add_argument('--directory',action='append');d.add_argument('--maps',action='store_true');d.add_argument('--query');d.add_argument('--city',required=True);d.add_argument('--output',default='data/discovered.json');d.add_argument('--limit',type=int,default=30)
+    rv=sub.add_parser('reviews',help='Manual, optional review research; no scoring or outreach changes')
+    action=rv.add_mutually_exclusive_group();action.add_argument('--login',action='store_true');action.add_argument('--doctor',action='store_true');action.add_argument('--qualified',action='store_true');action.add_argument('--prospect',action='append')
+    rv.add_argument('--anonymous',action='store_true');rv.add_argument('--limit',type=int,default=10);rv.add_argument('--timeout',type=int,default=90);rv.add_argument('--visible',action='store_true')
     sub.add_parser('status')
     sy=sub.add_parser('sync');sy.add_argument('--gmail',action='store_true');sy.add_argument('--sheets',action='store_true');sy.add_argument('--telegram-run');sy.add_argument('--hermes-env')
     e=sub.add_parser('export');e.add_argument('--review-signals',help='optional gmr signals.json; informational, never scored')
     m=sub.add_parser('mark');m.add_argument('id');m.add_argument('--status',required=True,choices=['not contacted','draft prepared','contacted','replied','do not contact','won','lost']);m.add_argument('--follow-up',default='')
     args=parser.parse_args()
-    if args.command=='run':run(args)
+    if args.command=='reviews':
+        from .reviews import run_reviews,PROFILE
+        import subprocess
+        if args.login:
+            from .review_session import open_browser
+            print(json.dumps(open_browser(ROOT)))
+            print('Sign into Maps in the dedicated Chrome window and leave it open. Then run ./hunt reviews --doctor.')
+            return
+        if args.doctor:
+            from .reviews import collect_one
+            result=collect_one(ROOT,{'id':'auth-check','name':'Profile authentication check','maps_url':'https://www.google.com/maps/search/local+business'},timeout=30,mode='doctor')
+            print(json.dumps({k:result.get(k) for k in ('status','auth_state','termination')},indent=2))
+            raise SystemExit(0 if result['status']=='ready' else 2)
+        store=Store(ROOT)
+        try:
+            results=run_reviews(ROOT,store,args.prospect,args.qualified,args.limit,args.anonymous,args.timeout,args.visible)
+            print('Review report:',ROOT/'data/reviews/latest-report.md')
+            if any(r['status']!='collected' for r in results):raise SystemExit(2)
+        finally:store.db.close()
+    elif args.command=='run':run(args)
     elif args.command=='discover':
         out=Path(args.output).resolve()
         if not out.is_relative_to(ROOT):parser.error('Output must remain inside this project')

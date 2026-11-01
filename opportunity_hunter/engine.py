@@ -94,7 +94,7 @@ class Store:
         old=self.db.execute('SELECT payload FROM prospects WHERE id=?',(pid,)).fetchone()
         if old:
             for k,v in json.loads(old[0]).items():
-                if k.startswith(('maps_','google_')) and k not in p:p[k]=v
+                if k.startswith(('maps_','google_','review_')) and k not in p:p[k]=v
         # Existing human outreach fields live outside the researched payload and are never overwritten.
         with self.db:
             self.db.execute('INSERT INTO prospects(id,payload,updated_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at', (pid,json.dumps(p),now()))
