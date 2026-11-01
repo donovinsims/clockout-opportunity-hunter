@@ -37,6 +37,15 @@ class MapsTests(unittest.TestCase):
         self.assertEqual(p['google_review_count'],1234);self.assertEqual(p['google_rating'],4.8)
         self.assertEqual(p['google_category'],'Electrician');self.assertEqual(p['maps_place_id'],'ChIJabc')
         self.assertEqual(p['maps_phone'],'(815) 555-0123')
+    def test_aggregate_count_is_not_confused_with_mentioned_in_reviews(self):
+        p=parse_listing('<h1>Business</h1><div class="F7nice"><span role="img" aria-label="4.8 stars"></span><span aria-label="219 Google reviews">(219)</span></div><button aria-label="mentioned in 8 reviews">service</button>','https://www.google.com/maps/place/test','Rockton','auto')
+        self.assertEqual(p['google_review_count'],219);self.assertEqual(p['google_rating'],4.8)
+
+    def test_individual_reviews_do_not_replace_the_business_aggregate(self):
+        html='<h1>Business</h1><div class="F7nice"><span role="img" aria-label="4.7 stars"></span><span aria-label="219 reviews">(219)</span></div><div data-review-id="r1"><span aria-label="5 stars"></span><span aria-label="12 reviews"></span></div>'
+        p=parse_listing(html,'https://www.google.com/maps/place/test','Rockford','auto')
+        self.assertEqual(p['google_rating'],4.7);self.assertEqual(p['google_review_count'],219)
+
     def test_missing_rating_count_and_site_are_unknown(self):
         p=parse_listing('<h1>Business</h1>','https://www.google.com/maps/place/test','Rockton','auto repair')
         self.assertIsNone(p['google_rating']);self.assertIsNone(p['google_review_count']);self.assertEqual(p['website'],'')

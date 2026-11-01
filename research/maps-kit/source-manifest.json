@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/Mahanaicoach/google-maps-scraper-kit",
+  "commit": "01e270f79f76e7d157994ae8f04da1ee8fe60652",
+  "license": "MIT",
+  "attribution": "Mahan / Mahanaicoach",
+  "reviewed_files": {
+    "engine/maps.py": "https://raw.githubusercontent.com/Mahanaicoach/google-maps-scraper-kit/master/engine/maps.py",
+    "engine/details.py": "https://raw.githubusercontent.com/Mahanaicoach/google-maps-scraper-kit/master/engine/details.py",
+    "engine/browser.py": "https://raw.githubusercontent.com/Mahanaicoach/google-maps-scraper-kit/master/engine/browser.py",
+    "CREDITS.md": "https://raw.githubusercontent.com/Mahanaicoach/google-maps-scraper-kit/master/CREDITS.md"
+  },
+  "sha256": {
+    "engine/maps.py": "a74f807b082bb8afa3644e285531827b453bc546c41d590fbb6d48c2929de010",
+    "engine/details.py": "0881c8279d19622c7360b25559019b5e6a55822095b4e716843b14d4e65fae30",
+    "engine/browser.py": "0efda22214bbcb9734deb3b6a07a63df72c93d7e5593511761dbf5b88bee2b08"
+  },
+  "execution": "No upstream code was executed; live comparison adapted only the Chrome user-agent idea in a temporary Playwright harness."
+}

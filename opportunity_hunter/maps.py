@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 from bs4 import BeautifulSoup
 from .web import now, is_challenge, domain, public_url
+from .maps_network import parse_entities, merge_network
 
 MAP_FIELDS = ['maps_url','google_category','google_rating','google_review_count','maps_checked_at']
 
@@ -32,16 +33,28 @@ def parse_listing(html, url, city, query):
     website=authority.get('href','') if authority else ''
     if website and (urlsplit(website).scheme not in ('http','https') or domain(website)=='google.com'):website=''
     rating=None; count=None
-    for el in soup.select('[aria-label]'):
+    aggregate=soup.select_one('div.F7nice')
+    for el in (aggregate or soup).select('[aria-label]'):
+        if not aggregate and el.find_parent(attrs={'data-review-id':True}):continue
         label=el['aria-label']
         m=re.fullmatch(r'\s*([0-5](?:[.,]\d+)?)\s+stars?\s*',label,re.I)
-        if m:rating=float(m[1].replace(',','.'))
+        if m and rating is None:rating=float(m[1].replace(',','.'))
         m=re.fullmatch(r'\s*([\d,]+)\s+reviews?\s*',label,re.I)
-        if m:count=int(m[1].replace(',',''))
+        if m and count is None:count=int(m[1].replace(',',''))
+    if count is None:
+        # Full-view overview puts the count in a sibling span: aria-label="219 reviews"
+        # or text "(219)" beside the business's aggregate star rating.
+        star=soup.select_one('span[role="img"][aria-label*="stars"]')
+        if star:
+            group=star.find_parent('div',class_='F7nice')
+            if group:
+                for el in group.select('span[aria-label]'):
+                    m=re.fullmatch(r'\s*([\d,]+)\s+(?:Google\s+)?reviews?\s*',el.get('aria-label',''),re.I)
+                    if m and count is None:count=int(m[1].replace(',',''));break
     if count is None:
         for el in soup.select('button[jsaction*="reviewChart"], button[jsaction*="moreReviews"]'):
             m=re.search(r'([\d,]+)\s+reviews?',el.get_text(' ',strip=True),re.I)
-            if m:count=int(m[1].replace(',',''));break
+            if m and count is None:count=int(m[1].replace(',',''));break
     category=field('button[jsaction*="category"]')
     pid=re.search(r'!19s([^!/?&]+)',url)
     cid=re.search(r'!1s([^!/?&]+)',url)
@@ -51,7 +64,7 @@ def parse_listing(html, url, city, query):
             'maps_phone':field('button[data-item-id*="phone"]',r'^Phone:\s*'),
             'google_category':category,'google_rating':rating,'google_review_count':count,
             'maps_checked_at':now(),'maps_query':query,
-            'maps_field_notes':(['Google limited view; hidden review counts remain unknown'] if 'limited view of Google Maps' in soup.get_text(' ',strip=True) else []),
+            'maps_field_notes':(['Google limited-view marker present; unavailable fields remain unknown'] if 'limited view of Google Maps' in soup.get_text(' ',strip=True) else []),
             'maps_closed':bool(re.search(r'permanently closed',soup.get_text(' ',strip=True),re.I))}
 
 
@@ -95,7 +108,12 @@ def _worker(root,query,city,limit,path):
             chrome=Path('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
             browser=pw.chromium.launch(headless=True,chromium_sandbox=True,timeout=15000,
                                       **({'executable_path':str(chrome)} if chrome.exists() else {}))
-            context=browser.new_context(locale='en-US',accept_downloads=False,service_workers='block')
+            # Adapted from the MIT-licensed kit's browser technique. Keep the actual
+            # Chrome OS/version, so public desktop Maps exposes its normal fields.
+            probe=browser.new_context();probe_page=probe.new_page()
+            native_agent=probe_page.evaluate('navigator.userAgent');probe.close()
+            context=browser.new_context(locale='en-US',accept_downloads=False,service_workers='block',
+                                        user_agent=native_agent.replace('HeadlessChrome/','Chrome/'))
             # Isolated ephemeral profile: never inherits the owner's Google session.
             checked_hosts=set()
             def route_public(route):
@@ -109,7 +127,21 @@ def _worker(root,query,city,limit,path):
                     return route.continue_()
                 except Exception:return route.abort()
             context.route('**/*',route_public)
-            page=context.new_page();page.set_default_timeout(8000)
+            network_rows=[];network_artifacts=[]
+            def capture_response(response):
+                try:
+                    u=urlsplit(response.url)
+                    if u.hostname not in ('www.google.com','google.com') or not (u.path.startswith('/maps/preview/place') or u.path=='/search' and 'tbm=map' in u.query):return
+                    if int(response.headers.get('content-length','0'))>3_000_000:return
+                    body=response.text()
+                    if len(body)>3_000_000:return
+                    rows=parse_entities(body)
+                    if rows:
+                        network_rows.extend(rows)
+                        file=path.parent/('network-'+hashlib.sha256(body.encode()).hexdigest()[:20]+'.json');file.write_text(body)
+                        if str(file.relative_to(root)) not in network_artifacts:network_artifacts.append(str(file.relative_to(root)))
+                except Exception:pass
+            page=context.new_page();page.on('response',capture_response);page.set_default_timeout(8000)
             state='WI' if city=='Beloit' else 'IL'
             search_url='https://www.google.com/maps/search/'+quote(f'{query} in {city} {state}')+'?hl=en&gl=us'
             page.goto(search_url,wait_until='domcontentloaded',timeout=25000)
@@ -133,6 +165,9 @@ def _worker(root,query,city,limit,path):
                     page.goto(url,wait_until='domcontentloaded',timeout=15000)
                     page.wait_for_timeout(1200);check()
                     html=page.content();candidate=parse_listing(html,page.url,city,query)
+                    if candidate:
+                        merge_network(candidate,network_rows)
+                        if candidate.get('maps_network_fields'):candidate['maps_network_artifacts']=list(network_artifacts)
                     if not candidate:raise ValueError('Listing selectors returned no business name')
                     evidence=path.parent/f'listing-{idx+1}.html';evidence.write_text(html)
                     candidate['maps_artifact']=str(evidence.relative_to(root))
