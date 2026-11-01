@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GMaps Collector</title>
+<style>
+body{font-family:system-ui;max-width:1000px;margin:2rem auto;padding:0 1rem}h2{font-size:1.2rem}td,th{border:1px solid #ddd;padding:.4rem;text-align:left}table{border-collapse:collapse;width:100%;font-size:13px}button{margin:.5rem .5rem .5rem 0}#error{color:#a00}td{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<h1>Google Maps review collector</h1><p id="error" role="alert"></p>
+<h2>Places</h2>
+<table id="places"><thead><tr><th>Feature ID</th><th>Name</th><th>Collected / expected</th></tr></thead><tbody></tbody></table>
+<h2>Recent runs</h2>
+<table id="runs"><thead><tr><th>Job</th><th>Status</th><th>Item counts</th><th>Collected / expected</th><th>Completeness</th></tr></thead><tbody></tbody></table>
+<p><a href="/api/export/csv">Export all reviews (CSV)</a> · <a href="/api/export/json">Export all (JSON)</a></p>
+<section id="detail"></section>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function request(url){const response=await fetch(url);const body=await response.json();if(!response.ok)throw new Error(body.error??`HTTP ${response.status}`);return body;}
+function report(error){document.getElementById('error').textContent=error.message;}
+async function showReviews(place,offset=0){
+  try{
+    const data=await request(`/api/places/${encodeURIComponent(place.placeId)}/reviews?limit=50&offset=${offset}`);
+    const detail=document.getElementById('detail');
+    detail.innerHTML=`<h2>${esc(place.name??place.placeId)}</h2><p>${data.total?offset+1:0}–${offset+data.reviews.length} of ${data.total} stored reviews</p><button id="previous">Previous</button><button id="next">Next</button><table><thead><tr><th>Reviewer</th><th>Rating</th><th>Date</th><th>Text</th></tr></thead><tbody>${data.reviews.map(r=>`<tr><td>${esc(r.reviewerName)}</td><td>${esc(r.rating)}</td><td>${esc(r.publishedDateRaw)}</td><td>${esc(r.reviewText)}${r.textTruncated?' [truncated]':''}</td></tr>`).join('')}</tbody></table>`;
+    const previous=document.getElementById('previous'),next=document.getElementById('next');previous.disabled=offset===0;next.disabled=offset+data.reviews.length>=data.total;
+    previous.onclick=()=>showReviews(place,Math.max(0,offset-50));next.onclick=()=>showReviews(place,offset+50);
+  }catch(error){report(error);}
+}
+request('/api/places').then(({places})=>{
+  const body=document.querySelector('#places tbody');
+  for(const place of places){const tr=document.createElement('tr');tr.innerHTML=`<td><a href="#">${esc(place.placeId)}</a></td><td>${esc(place.name)}</td><td>${place.reviewCount} / ${place.reviewsCount??'?'}</td>`;tr.querySelector('a').onclick=e=>{e.preventDefault();showReviews(place);};body.appendChild(tr);}
+}).catch(report);
+request('/api/jobs').then(({jobs})=>{
+  const body=document.querySelector('#runs tbody');
+  for(const job of jobs.slice(0,10)){const tr=document.createElement('tr');tr.innerHTML=`<td>${esc(job.id)}</td><td>${esc(job.status)}</td><td>${esc(Object.entries(job.counts).map(([k,v])=>`${k}: ${v}`).join(', '))}</td><td>${job.collected} / ${job.expected??'?'}</td><td>${job.completeness==null?'unknown':(job.completeness*100).toFixed(1)+'%'}</td>`;body.appendChild(tr);}
+}).catch(report);
+</script>
+</body>
+</html>

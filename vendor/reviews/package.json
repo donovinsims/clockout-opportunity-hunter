@@ -1,0 +1,42 @@
+{
+  "name": "gmaps-reviews",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/cli/index.js",
+  "bin": {
+    "gmr": "src/cli/index.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "test": "node --test \"tests/core/*.test.js\" \"tests/mocked/*.test.js\" \"tests/integration/*.test.js\" \"tests/dashboard/*.test.js\"",
+    "test:integration": "node --test \"tests/integration/**/*.test.js\"",
+    "cli": "node src/cli/index.js",
+    "run:all": "node src/cli/index.js run urls.txt",
+    "export:csv": "node src/cli/index.js export --format csv --out data/export/reviews.csv",
+    "export:json": "node src/cli/index.js export --format json --out data/export/reviews.json",
+    "serve": "node src/cli/index.js serve",
+    "gmr": "node src/cli/index.js",
+    "test:live": "node scripts/test-live.mjs",
+    "check": "node scripts/check.mjs",
+    "browser:install": "node node_modules/rebrowser-playwright/cli.js install chromium"
+  },
+  "dependencies": {
+    "commander": "^14.0.2",
+    "express": "^4.21.0",
+    "playwright": "^1.50.0",
+    "rebrowser-playwright": "^1.64.101"
+  },
+  "keywords": [
+    "google-maps",
+    "reviews",
+    "scraper",
+    "local"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "linkedom": "^0.18.14"
+  },
+  "private": true
+}
